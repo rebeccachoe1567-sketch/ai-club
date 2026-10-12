@@ -24,7 +24,16 @@ Why not just send Claude every document? For 5 short PDFs you could. But real
 collections have thousands of pages. Retrieval keeps each request small, cheap
 and focused, and the citations let you check where each fact came from.
 
-## Setup
+## No Python? Use the web version
+
+`web/document-desk.html` is the same RAG system as a single web page, published
+as a Claude artifact. It does the chunking and search in the browser and asks
+Claude for the answer through your Claude account, so it needs no Python and no
+API key. You can also add your own PDFs on the page.
+
+To rebuild it after changing the documents: `python ingest.py && python web/build.py`.
+
+## Setup (Python version)
 
 1. **Install Python 3.10+**, then the two libraries:
 

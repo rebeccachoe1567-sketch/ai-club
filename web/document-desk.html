@@ -1,0 +1,409 @@
+<title>Document Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<style>
+/* Layout: a two-column workbench. Library on the left, the ask -> retrieve -> answer flow on the right. */
+:root {
+  --bg: #f3f5f2;
+  --surface: #ffffff;
+  --ink: #18221d;
+  --muted: #5b6a62;
+  --line: #d8dfda;
+  --accent: #1f5c46;
+  --accent-soft: #e2eee8;
+  --hit: #f4e7b8;
+  --warn: #8a4b12;
+  --font-display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111613; --surface: #19201c; --ink: #e4ebe6; --muted: #9aaba1; --line: #2c3731;
+    --accent: #7cc4a5; --accent-soft: #213229; --hit: #4a4220; --warn: #e2a56a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111613; --surface: #19201c; --ink: #e4ebe6; --muted: #9aaba1; --line: #2c3731;
+  --accent: #7cc4a5; --accent-soft: #213229; --hit: #4a4220; --warn: #e2a56a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body);
+  font-size: 15px; line-height: 1.5; padding-inline: 16px; padding-block: 20px 48px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 20px; }
+h1, h2 { font-family: var(--font-display); font-weight: 700; margin: 0; text-wrap: balance; }
+h1 { font-size: 1.9rem; letter-spacing: -0.01em; }
+h2 { font-size: 1.05rem; }
+.eyebrow { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+.sub { color: var(--muted); margin: 4px 0 0; max-width: 68ch; }
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* pipeline strip */
+.pipeline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 0.85rem; }
+.step { display: flex; gap: 8px; align-items: center; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.step b { font-family: var(--font-mono); font-weight: 500; color: var(--accent); }
+.step.active { border-color: var(--accent); background: var(--accent-soft); }
+.arrow { color: var(--muted); }
+
+.grid { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 820px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+
+/* library */
+.doclist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.doc { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 8px 10px; border-radius: 6px; background: var(--bg); }
+.doc .name { font-weight: 500; overflow-wrap: anywhere; }
+.doc .meta { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+.doc .remove { border: 0; background: none; color: var(--muted); font-size: 0.75rem; padding: 0; text-decoration: underline; }
+.add { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+.filebtn { display: inline-flex; justify-content: center; padding: 8px 12px; border: 1px dashed var(--accent); border-radius: 6px; color: var(--accent); font-weight: 500; text-align: center; }
+.filebtn input { display: none; }
+.hint { font-size: 0.8rem; color: var(--muted); margin: 0; }
+.status { font-size: 0.8rem; color: var(--accent); min-height: 1.2em; margin: 0; }
+.status.err { color: var(--warn); }
+
+/* ask */
+.askrow { display: flex; gap: 8px; flex-wrap: wrap; }
+#q { flex: 1 1 260px; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.primary { padding: 10px 18px; border: 0; border-radius: 8px; background: var(--accent); color: var(--surface); font-weight: 600; }
+.primary:disabled { opacity: 0.55; cursor: default; }
+.ghost { padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 4px 10px; font-size: 0.8rem; color: var(--muted); }
+.chip:hover { color: var(--ink); border-color: var(--accent); }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 0.85rem; color: var(--muted); }
+.controls input[type=range] { accent-color: var(--accent); width: 120px; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* answer */
+.answer { font-size: 1rem; line-height: 1.65; max-width: 72ch; white-space: pre-wrap; overflow-wrap: anywhere; }
+.answer.placeholder { color: var(--muted); font-style: italic; }
+.cite { display: inline-block; border: 0; background: var(--accent-soft); color: var(--accent); font-family: var(--font-mono); font-size: 0.75rem; font-weight: 500; padding: 0 5px; border-radius: 4px; margin: 0 1px; vertical-align: 1px; }
+.note { font-size: 0.85rem; color: var(--warn); margin: 0; }
+
+/* sources */
+.sources { display: grid; gap: 8px; }
+.src { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.src.flash { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.src summary { list-style: none; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px; cursor: pointer; }
+.src summary::-webkit-details-marker { display: none; }
+.src .n { font-family: var(--font-mono); color: var(--accent); font-weight: 500; }
+.src .title { font-weight: 500; overflow-wrap: anywhere; }
+.src .title small { color: var(--muted); font-weight: 400; }
+.bar { display: flex; gap: 6px; align-items: center; font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); }
+.bar i { display: block; height: 6px; width: 60px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.bar i span { display: block; height: 100%; background: var(--accent); }
+.src pre { margin: 0; padding: 10px 12px; border-top: 1px solid var(--line); background: var(--bg); font-family: var(--font-mono); font-size: 0.78rem; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow-y: auto; }
+mark { background: var(--hit); color: inherit; border-radius: 2px; }
+.empty { color: var(--muted); font-size: 0.9rem; margin: 0; }
+.how { font-size: 0.85rem; color: var(--muted); display: grid; gap: 6px; }
+.how p { margin: 0; max-width: 70ch; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">RAG workbench</div>
+    <h1>Document Desk</h1>
+    <p class="sub">Ask a question. The page finds the passages most likely to hold the answer, then Claude answers using only those passages and cites each one.</p>
+  </header>
+
+  <div class="pipeline" aria-label="How an answer is made">
+    <span class="step" id="st1"><b>1</b> Library: <span id="stat-chunks" class="mono">0</span> chunks</span>
+    <span class="arrow">→</span>
+    <span class="step" id="st2"><b>2</b> Retrieve top <span id="stat-k" class="mono">5</span></span>
+    <span class="arrow">→</span>
+    <span class="step" id="st3"><b>3</b> Claude answers</span>
+  </div>
+
+  <div class="grid">
+    <aside class="panel">
+      <h2>Library</h2>
+      <ul class="doclist" id="doclist"></ul>
+      <div class="add">
+        <label class="filebtn">Add PDFs<input id="file" type="file" accept="application/pdf" multiple></label>
+        <p class="hint">Added files are read in your browser and stay until you reload the page.</p>
+        <p class="status" id="addstatus" role="status"></p>
+      </div>
+    </aside>
+
+    <main class="panel">
+      <form class="askrow" id="askform">
+        <input id="q" type="text" autocomplete="off" placeholder="Ask about the documents…" aria-label="Question">
+        <button class="primary" id="ask" type="submit">Ask Claude</button>
+        <button class="ghost" id="stop" type="button" hidden>Stop</button>
+      </form>
+      <div class="chips" id="examples"></div>
+      <div class="controls">
+        <label for="k">Passages sent to Claude</label>
+        <input id="k" type="range" min="1" max="10" value="5">
+        <span class="mono" id="kval">5</span>
+      </div>
+
+      <section aria-labelledby="ans-h" style="display:grid;gap:8px">
+        <div class="eyebrow" id="ans-h">Answer</div>
+        <div class="answer placeholder" id="answer">Pick an example or type a question, then press Ask Claude.</div>
+        <p class="note" id="note" hidden></p>
+      </section>
+
+      <section aria-labelledby="src-h" style="display:grid;gap:8px">
+        <div class="eyebrow" id="src-h">Retrieved passages (what Claude reads)</div>
+        <div class="sources" id="sources"><p class="empty">Passages appear here as you type.</p></div>
+      </section>
+
+      <details class="how">
+        <summary class="eyebrow" style="cursor:pointer">How this works</summary>
+        <p><b>1. Library.</b> Each PDF is cut into chunks of about 1,000 characters, a few paragraphs each.</p>
+        <p><b>2. Retrieve.</b> Your question is matched against every chunk with BM25 keyword scoring. Rare words that appear in both count the most. The bars show each chunk's score.</p>
+        <p><b>3. Answer.</b> Only the top passages and your question go to Claude, with an instruction to answer from them alone and cite them as [1], [2]. Click a citation to see its passage.</p>
+      </details>
+    </main>
+  </div>
+</div>
+
+<script>
+const BUILTIN_CHUNKS = [{"id": 0, "document": "Internal Memo Winter Operations", "file": "01_Internal_Memo_Winter_Operations.pdf", "page": 1, "text": "Internal Memorandum\n\nTO: | All Retail and Warehouse Staff\nFROM: | Dana Whitcombe, Director of Operations\nCC: | Marcus Oyelaran, CFO; Priya Nandakumar, HR Manager\nDATE: | October 5, 2026\nRE: | Winter Season Staffing, Inventory Cutover, and Holiday Schedule\n\nAs we head into our busiest quarter, this memo summarizes three operational changes taking effect over the\nnext six weeks. Please read it in full and direct questions to your shift lead.\n\n1. Seasonal Staffing\nWe are hiring 14 seasonal associates (9 retail, 5 warehouse) for the period of November 2, 2026 through\nJanuary 15, 2027. Seasonal staff will complete a two-day onboarding on October 29–30. Each new associate\nwill be paired with a permanent team member for their first three shifts. If you are interested in serving as a peer\nmentor, notify Priya Nandakumar by October 16; mentors receive a $250 stipend for the season."}, {"id": 1, "document": "Internal Memo Winter Operations", "file": "01_Internal_Memo_Winter_Operations.pdf", "page": 1, "text": "1. Seasonal Staffing\nWe are hiring 14 seasonal associates (9 retail, 5 warehouse) for the period of November 2, 2026 through\nJanuary 15, 2027. Seasonal staff will complete a two-day onboarding on October 29–30. Each new associate\nwill be paired with a permanent team member for their first three shifts. If you are interested in serving as a peer\nmentor, notify Priya Nandakumar by October 16; mentors receive a $250 stipend for the season.\n\n2. Inventory System Cutover\nThe warehouse will migrate from the legacy StockLedger system to the new cloud inventory platform over the\nweekend of October 24–25. During the cutover:\n\n• Receiving will pause from 6:00 PM Friday until 8:00 AM Monday.\n• Online orders placed during the window will be queued and shipped Monday.\n• A full physical count of the Fernridge warehouse is scheduled for Saturday, October 24. All warehouse staff\nare scheduled; overtime is approved.\n\n3. Holiday Hours\n\nDate | Retail Store | Warehouse | Customer Service"}, {"id": 2, "document": "Internal Memo Winter Operations", "file": "01_Internal_Memo_Winter_Operations.pdf", "page": 1, "text": "Date | Retail Store | Warehouse | Customer Service\n\nThu, Nov 26 (Thanksgiving) | Closed | Closed | Closed\n\nFri, Nov 27 | 7:00 AM – 9:00 PM | 6:00 AM – 4:00 PM | 7:00 AM – 9:00 PM\n\nThu, Dec 24 | 9:00 AM – 3:00 PM | Closed | 9:00 AM – 1:00 PM\n\nFri, Dec 25 | Closed | Closed | Closed\n\nThu, Dec 31 | 9:00 AM – 5:00 PM | 7:00 AM – 3:00 PM | 9:00 AM – 3:00 PM\n\nFri, Jan 1 | Closed | Closed | Closed\n\nTime-off requests for December 19 through January 3 must be submitted in the scheduling portal by November\n1. Requests will be approved in order of submission, subject to minimum coverage levels."}, {"id": 3, "document": "Internal Memo Winter Operations", "file": "01_Internal_Memo_Winter_Operations.pdf", "page": 2, "text": "Thank you for the hard work that made Q3 our strongest quarter to date. Let's carry that momentum through the\nseason.\n\n— Dana"}, {"id": 4, "document": "Invoice LV-2026-10418", "file": "02_Invoice_LV-2026-10418.pdf", "page": 1, "text": "INVOICE\n\nBill To | Invoice #: LV-2026-10418\nSummit Trailhead Outfitters LLC | Invoice Date: October 8, 2026\nAttn: Accounts Payable | Due Date: November 7, 2026\n88 Aspen Hollow Road | Terms: Net 30\nPinecrest Falls, CO 80998 | PO #: STO-55721\n\nItem # | Description | Qty | Unit Price | Amount\n\nTRK-220 | Ridgeline 2-Person Backpacking Tent | 12 | $189.00 | $2,268.00\n\nSLP-115 | Alpine Down Sleeping Bag, 15°F | 20 | $142.50 | $2,850.00\n\nPCK-040 | Traverse 40L Daypack, Slate | 30 | $64.00 | $1,920.00\n\nSTV-008 | Compact Canister Stove | 25 | $38.75 | $968.75\n\nHDL-300 | Headlamp, 300 Lumen Rechargeable | 40 | $22.40 | $896.00\n\nWTR-1L | Insulated Water Bottle, 1L (assorted) | 60 | $14.95 | $897.00\n\nFRT-SVC | Freight – LTL Ground (2 pallets) | 1 | $285.00 | $285.00\n\nSubtotal | $10,084.75\nVolume Discount (5% on merchandise) | -$489.99\nSales Tax (resale certificate #RC-48812 on file) | $0.00\nTOTAL DUE | $9,594.76"}, {"id": 5, "document": "Invoice LV-2026-10418", "file": "02_Invoice_LV-2026-10418.pdf", "page": 1, "text": "Subtotal | $10,084.75\nVolume Discount (5% on merchandise) | -$489.99\nSales Tax (resale certificate #RC-48812 on file) | $0.00\nTOTAL DUE | $9,594.76\n\nPayment Instructions\nACH / Wire: Fernridge Community Bank · Routing 000000000 · Account XXXX-0000 (sample)\nCheck: payable to Larkspur & Vane Outdoor Supply Co., mailed to the address above.\nPlease reference invoice number LV-2026-10418 with your payment.\n\nA late fee of 1.5% per month applies to balances outstanding beyond the due date. Questions about this invoice? Contact Elena\nRuiz, Accounts Receivable, at (555) 014-2291.\n\nThank you for your business!"}, {"id": 6, "document": "Master Services Agreement MSA-2026-007", "file": "03_Master_Services_Agreement_MSA-2026-007.pdf", "page": 1, "text": "Master Services Agreement\nAgreement No. MSA-2026-007 · Effective Date: September 15, 2026\n\nThis Master Services Agreement (the “Agreement”) is entered into as of the Effective Date by and between\nLarkspur & Vane Outdoor Supply Co., a Colorado corporation with its principal office at 1450 Juniper Ridge\nWay, Suite 200, Fernridge, CO 80999 (“Client”), and Bluefinch Logistics Partners, Inc., a Delaware\ncorporation with its principal office at 4200 Meridian Freight Parkway, Granite Bend, CO 80997 (“Provider”).\nClient and Provider are each a “Party” and together the “Parties.”\n\n1. Services\nProvider shall furnish third-party warehousing, pick-and-pack fulfillment, and last-mile coordination services (the\n“Services”) as described in one or more Statements of Work (“SOW”) executed by both Parties. Each SOW is\nincorporated into this Agreement by reference. In the event of a conflict, this Agreement controls unless the\nSOW expressly states otherwise."}, {"id": 7, "document": "Master Services Agreement MSA-2026-007", "file": "03_Master_Services_Agreement_MSA-2026-007.pdf", "page": 1, "text": "1. Services\nProvider shall furnish third-party warehousing, pick-and-pack fulfillment, and last-mile coordination services (the\n“Services”) as described in one or more Statements of Work (“SOW”) executed by both Parties. Each SOW is\nincorporated into this Agreement by reference. In the event of a conflict, this Agreement controls unless the\nSOW expressly states otherwise.\n\n2. Term and Renewal\nThis Agreement begins on the Effective Date and continues for an initial term of twenty-four (24) months.\nThereafter it renews automatically for successive twelve (12) month periods unless either Party gives written\nnotice of non-renewal at least ninety (90) days before the end of the then-current term."}, {"id": 8, "document": "Master Services Agreement MSA-2026-007", "file": "03_Master_Services_Agreement_MSA-2026-007.pdf", "page": 1, "text": "2. Term and Renewal\nThis Agreement begins on the Effective Date and continues for an initial term of twenty-four (24) months.\nThereafter it renews automatically for successive twelve (12) month periods unless either Party gives written\nnotice of non-renewal at least ninety (90) days before the end of the then-current term.\n\n3. Fees and Payment\nClient shall pay the fees set forth in each SOW. Provider shall invoice monthly in arrears, and Client shall pay\nundisputed amounts within thirty (30) days of receipt. Client may dispute any invoice in good faith by written\nnotice within fifteen (15) days, specifying the basis of the dispute. Rate adjustments may occur no more than\nonce per contract year and shall not exceed four percent (4%)."}, {"id": 9, "document": "Master Services Agreement MSA-2026-007", "file": "03_Master_Services_Agreement_MSA-2026-007.pdf", "page": 1, "text": "3. Fees and Payment\nClient shall pay the fees set forth in each SOW. Provider shall invoice monthly in arrears, and Client shall pay\nundisputed amounts within thirty (30) days of receipt. Client may dispute any invoice in good faith by written\nnotice within fifteen (15) days, specifying the basis of the dispute. Rate adjustments may occur no more than\nonce per contract year and shall not exceed four percent (4%).\n\n4. Service Levels\nProvider shall meet the following minimum performance standards, measured monthly: (a) order accuracy of\n99.5% or greater; (b) same-day shipment of 98% of orders received before 2:00 PM Mountain Time; and (c)\ninventory count accuracy of 99.0% or greater at each quarterly cycle count. If Provider fails to meet any\nstandard in two consecutive months, Client shall receive a service credit equal to five percent (5%) of that\nmonth’s fees."}, {"id": 10, "document": "Master Services Agreement MSA-2026-007", "file": "03_Master_Services_Agreement_MSA-2026-007.pdf", "page": 1, "text": "4. Service Levels\nProvider shall meet the following minimum performance standards, measured monthly: (a) order accuracy of\n99.5% or greater; (b) same-day shipment of 98% of orders received before 2:00 PM Mountain Time; and (c)\ninventory count accuracy of 99.0% or greater at each quarterly cycle count. If Provider fails to meet any\nstandard in two consecutive months, Client shall receive a service credit equal to five percent (5%) of that\nmonth’s fees.\n\n5. Risk of Loss and Insurance\nProvider bears the risk of loss for Client goods while in Provider’s possession, up to the replacement cost of\nsuch goods. Provider shall maintain warehouse legal liability coverage of not less than $2,000,000 per\noccurrence and commercial general liability coverage of not less than $1,000,000 per occurrence, and shall\nfurnish certificates of insurance upon request."}, {"id": 11, "document": "Master Services Agreement MSA-2026-007", "file": "03_Master_Services_Agreement_MSA-2026-007.pdf", "page": 1, "text": "5. Risk of Loss and Insurance\nProvider bears the risk of loss for Client goods while in Provider’s possession, up to the replacement cost of\nsuch goods. Provider shall maintain warehouse legal liability coverage of not less than $2,000,000 per\noccurrence and commercial general liability coverage of not less than $1,000,000 per occurrence, and shall\nfurnish certificates of insurance upon request.\n\n6. Confidentiality\nEach Party shall hold the other’s Confidential Information in strict confidence, use it only to perform under this\nAgreement, and disclose it only to employees and contractors with a need to know who are bound by\nobligations at least as protective. These obligations survive for three (3) years after termination.\n\n7. Termination"}, {"id": 12, "document": "Master Services Agreement MSA-2026-007", "file": "03_Master_Services_Agreement_MSA-2026-007.pdf", "page": 2, "text": "Either Party may terminate this Agreement (a) for convenience on one hundred twenty (120) days’ written\nnotice, or (b) for material breach if the breach remains uncured thirty (30) days after written notice. Upon\ntermination, Provider shall cooperate in an orderly transition and release all Client goods upon payment of\nundisputed amounts due.\n\n8. Limitation of Liability\nExcept for breaches of Section 6, indemnification obligations, or gross negligence or willful misconduct, neither\nParty shall be liable for indirect, incidental, or consequential damages, and each Party’s aggregate liability shall\nnot exceed the fees paid or payable in the twelve (12) months preceding the claim.\n\n9. General\nThis Agreement is governed by the laws of the State of Colorado. It constitutes the entire agreement between\nthe Parties regarding its subject matter and may be amended only in a writing signed by both Parties. Notices\nshall be delivered in writing to the addresses above."}, {"id": 13, "document": "Master Services Agreement MSA-2026-007", "file": "03_Master_Services_Agreement_MSA-2026-007.pdf", "page": 2, "text": "9. General\nThis Agreement is governed by the laws of the State of Colorado. It constitutes the entire agreement between\nthe Parties regarding its subject matter and may be amended only in a writing signed by both Parties. Notices\nshall be delivered in writing to the addresses above.\n\nIN WITNESS WHEREOF, the Parties have executed this Agreement as of the Effective Date.\n\nLARKSPUR & VANE OUTDOOR SUPPLY CO. | BLUEFINCH LOGISTICS PARTNERS, INC.\n\nBy: ______________________________ | By: ______________________________\nName: Marcus Oyelaran | Name: Theodora Haines\nTitle: Chief Financial Officer | Title: VP, Client Operations\nDate: ____________________ | Date: ____________________"}, {"id": 14, "document": "Leadership Meeting Minutes 2026-09-29", "file": "04_Leadership_Meeting_Minutes_2026-09-29.pdf", "page": 1, "text": "Leadership Team Meeting Minutes\nTuesday, September 29, 2026 · 9:00–10:30 AM MT · Conference Room B / video\n\nPresent | Avery Larkspur (CEO, chair); Marcus Oyelaran (CFO); Dana Whitcombe (Dir. of Operations); Jun\nTakahara (Head of E-Commerce); Priya Nandakumar (HR Manager)\n\nAbsent | Rosalind Vane (Head of Product) – traveling, sent written update\n\nRecorder | Priya Nandakumar\n\n1. Call to Order and Approval of Prior Minutes\nAvery called the meeting to order at 9:02 AM. Minutes of the September 15 meeting were approved without\nchanges (motion: Marcus; second: Dana).\n\n2. Q3 Financial Preview (Marcus)\nPreliminary Q3 revenue is tracking at approximately $4.82M, about 11% above Q2 and 6% above plan. Gross\nmargin is holding near 41%. Wholesale accounts drove most of the upside; Summit Trailhead Outfitters alone\nplaced three reorders in September. Final close expected October 9."}, {"id": 15, "document": "Leadership Meeting Minutes 2026-09-29", "file": "04_Leadership_Meeting_Minutes_2026-09-29.pdf", "page": 1, "text": "2. Q3 Financial Preview (Marcus)\nPreliminary Q3 revenue is tracking at approximately $4.82M, about 11% above Q2 and 6% above plan. Gross\nmargin is holding near 41%. Wholesale accounts drove most of the upside; Summit Trailhead Outfitters alone\nplaced three reorders in September. Final close expected October 9.\n\n3. Fulfillment Partner Transition (Dana)\nThe agreement with Bluefinch Logistics Partners was signed September 15. Overflow inventory begins moving\nto their Granite Bend facility October 12. Dana flagged that the inventory system cutover (Oct 24–25) overlaps\nwith the transfer, and recommended pausing transfers that weekend. Group agreed.\n\n4. Holiday E-Commerce Readiness (Jun)\nSite load testing completed at 3x last year's peak traffic with no failures. Early-access sale for loyalty members\nis planned for November 20. Jun requested an additional $35,000 for paid search in November–December;\ndiscussion deferred to the budget item below."}, {"id": 16, "document": "Leadership Meeting Minutes 2026-09-29", "file": "04_Leadership_Meeting_Minutes_2026-09-29.pdf", "page": 1, "text": "4. Holiday E-Commerce Readiness (Jun)\nSite load testing completed at 3x last year's peak traffic with no failures. Early-access sale for loyalty members\nis planned for November 20. Jun requested an additional $35,000 for paid search in November–December;\ndiscussion deferred to the budget item below.\n\n5. Q4 Budget Adjustments\nAfter discussion, the team approved (motion: Avery; second: Marcus; unanimous) an increase of $35,000 to the\nQ4 marketing budget, funded by reallocating $20,000 from the deferred showroom refresh and $15,000 from\ncontingency.\n\n6. Product Update (written, Rosalind)\nThe Ridgeline tent restock arrives October 20. The spring 2027 line review is moved to November 10 to\naccommodate supplier samples.\n\nAction Items\n\n# | Action | Owner | Due\n\n1 | Distribute final Q3 financial statements | M. Oyelaran | Oct 12\n\n2 | Publish revised transfer schedule excluding Oct 24–25 | D. Whitcombe | Oct 2"}, {"id": 17, "document": "Leadership Meeting Minutes 2026-09-29", "file": "04_Leadership_Meeting_Minutes_2026-09-29.pdf", "page": 2, "text": "# | Action | Owner | Due\n\n3 | Launch November paid-search campaign plan | J. Takahara | Oct 23\n\n4 | Finalize seasonal hire offers (14 positions) | P. Nandakumar | Oct 16\n\n5 | Circulate spring 2027 line review agenda | R. Vane | Nov 3\n\nMeeting adjourned at 10:24 AM. Next meeting: Tuesday, October 13, 2026, 9:00 AM."}, {"id": 18, "document": "Q3 2026 Quarterly Business Report", "file": "05_Q3_2026_Quarterly_Business_Report.pdf", "page": 1, "text": "Q3 2026 Quarterly Business Report\nPeriod: July 1 – September 30, 2026 · Prepared by Finance · Issued October 9, 2026\n\nExecutive Summary\nQ3 revenue reached $4,820,000, up 11.0% from Q2 and 5.9% ahead of plan. Growth came primarily from\nwholesale, where three regional outfitters expanded their orders, and from e-commerce, which benefited from\nthe August back-to-trail campaign. Gross margin was 41.1%, and operating income was $595,000.\n\n$4.82M | +11.0% | 41.1% | $595K\nTotal revenue | QoQ growth | Gross margin | Operating income\n\nRevenue by Channel\n\nChannel | Q2 2026 | Q3 2026 | Change | % of Q3\n\nRetail Store | $1,310,000 | $1,284,000 | -2.0% | 26.6%\n\nE-Commerce | $1,655,000 | $1,842,000 | +11.3% | 38.2%\n\nWholesale | $1,377,000 | $1,694,000 | +23.0% | 35.1%\n\nTotal | $4,342,000 | $4,820,000 | +11.0% | 100.0%\n\nCondensed Income Statement\n\nQ3 2026\n\nRevenue | $4,820,000\n\nCost of goods sold | $2,839,000\n\nGross profit | $1,981,000\n\nOperating expenses | $1,386,000\n\nOperating income | $595,000"}, {"id": 19, "document": "Q3 2026 Quarterly Business Report", "file": "05_Q3_2026_Quarterly_Business_Report.pdf", "page": 1, "text": "Operating income | $595,000\n\nOperational Highlights\n• Signed a 24-month fulfillment agreement with Bluefinch Logistics Partners (MSA-2026-007), adding 18,000 sq\nft of overflow capacity ahead of the holiday season.\n• E-commerce conversion rate improved from 2.4% to 2.9% following the checkout redesign.\n• Retail store revenue dipped 2.0% as foot traffic softened during late-summer road construction on Juniper\nRidge Way.\n• Wholesale customer count grew from 22 to 27 active accounts."}, {"id": 20, "document": "Q3 2026 Quarterly Business Report", "file": "05_Q3_2026_Quarterly_Business_Report.pdf", "page": 2, "text": "Risks and Outlook\nQ4 guidance is $5.6M–$5.9M in revenue. Key risks include the October 24–25 inventory system cutover,\nsupplier lead times for down products, and freight cost volatility. The leadership team approved an additional\n$35,000 in Q4 paid-search spend to capture holiday demand (see September 29 minutes)."}];
+
+const EXAMPLES = [
+  "Why were overflow transfers paused on October 24–25?",
+  "What is the total due on invoice LV-2026-10418, and when is it due?",
+  "How much notice is needed to end the Bluefinch agreement early?",
+  "What was wholesale revenue in Q3, and how did it change from Q2?",
+  "How was the extra $35,000 for marketing funded?",
+  "What is the company's dental plan?",
+];
+
+// ---------- Step 1: the library (chunks) ----------
+const CHUNK_SIZE = 1000;
+let chunks = BUILTIN_CHUNKS.map(c => ({ ...c, builtin: true }));
+
+function splitIntoChunks(text, size = CHUNK_SIZE) {
+  const paras = text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  const out = []; let cur = [];
+  for (const p of paras) {
+    if (cur.length && [...cur, p].join("\n\n").length > size) {
+      out.push(cur.join("\n\n"));
+      cur = [cur[cur.length - 1]]; // overlap: repeat the last paragraph
+    }
+    cur.push(p);
+  }
+  if (cur.length) out.push(cur.join("\n\n"));
+  return out;
+}
+
+// Rebuild lines from pdf.js text pieces: same y = same line, big x gap = table column, big y gap = new paragraph.
+function pageToText(items) {
+  const pieces = items.filter(it => it.str && it.str.trim())
+    .map(it => ({ s: it.str, x: it.transform[4], y: it.transform[5], w: it.width, h: Math.abs(it.transform[3]) || 10 }))
+    .sort((a, b) => (Math.abs(b.y - a.y) > 2 ? b.y - a.y : a.x - b.x));
+  let text = "", lastY = null, lastEnd = 0, lastH = 10;
+  for (const p of pieces) {
+    if (lastY === null) text += p.s;
+    else if (Math.abs(p.y - lastY) > 2) {
+      text += (lastY - p.y > lastH * 1.8 ? "\n\n" : "\n") + p.s;
+    } else {
+      const gap = p.x - lastEnd;
+      text += (gap > p.h * 1.5 ? " | " : gap > 0.5 ? " " : "") + p.s;
+    }
+    lastY = p.y; lastEnd = p.x + p.w; lastH = p.h;
+  }
+  return text.replace(/[ \t]+\n/g, "\n");
+}
+
+async function addPdf(file) {
+  const lib = window.pdfjsLib;
+  if (!lib) throw new Error("The PDF reader didn't load.");
+  const pdf = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
+  const title = file.name.replace(/\.pdf$/i, "").replace(/^\d+_/, "").replace(/_/g, " ");
+  let added = 0;
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const page = await pdf.getPage(n);
+    const text = pageToText((await page.getTextContent()).items);
+    for (const t of splitIntoChunks(text)) {
+      chunks.push({ id: chunks.length, document: title, file: file.name, page: n, text: t });
+      added++;
+    }
+  }
+  if (!added) throw new Error(`${file.name} has no selectable text (it may be a scanned image).`);
+  return added;
+}
+
+// ---------- Step 2: retrieval (BM25 keyword search) ----------
+const STOP = new Set(("a an and are as at be by did do does for from has have how i in is it its of on or our that the their them there these this to was we were what when where which who why will with would you your can about any").split(" "));
+const tokenize = t => (t.toLowerCase().replace(/,/g, "").match(/[a-z0-9][a-z0-9.\-]*[a-z0-9]|[a-z0-9]/g) || []).filter(w => !STOP.has(w));
+
+let index = null;
+function buildIndex() {
+  const docs = chunks.map(c => tokenize(c.document + " " + c.text));
+  const df = new Map();
+  docs.forEach(d => new Set(d).forEach(w => df.set(w, (df.get(w) || 0) + 1)));
+  index = { docs, df, avg: docs.reduce((s, d) => s + d.length, 0) / Math.max(docs.length, 1) };
+}
+
+function search(question, k) {
+  const q = tokenize(question), n = index.docs.length, k1 = 1.5, b = 0.75;
+  const hits = [];
+  index.docs.forEach((words, i) => {
+    const tf = new Map(); words.forEach(w => tf.set(w, (tf.get(w) || 0) + 1));
+    let score = 0;
+    for (const term of q) {
+      const f = tf.get(term); if (!f) continue;
+      const df = index.df.get(term);
+      const idf = Math.log(1 + (n - df + 0.5) / (df + 0.5));
+      score += idf * f * (k1 + 1) / (f + k1 * (1 - b + b * words.length / index.avg));
+    }
+    if (score > 0) hits.push({ ...chunks[i], score });
+  });
+  return hits.sort((a, b) => b.score - a.score).slice(0, k);
+}
+
+// ---------- Step 3: ask Claude ----------
+function buildPrompt(question, hits) {
+  const sources = hits.map((h, i) =>
+    `<source id="${i + 1}" document="${h.document}" page="${h.page}">\n${h.text}\n</source>`).join("\n\n");
+  return `You answer questions about a company's internal documents.
+
+Use only the numbered sources below. After every fact, cite the source it came from in square brackets, like [2]. If the sources don't contain the answer, say so plainly instead of guessing. When sources need to be combined (for example, a date from one document and a decision from another), combine them and cite each one. Keep the answer short and direct, in plain text without headings.
+
+<sources>
+${sources}
+</sources>
+
+Question: ${question}`;
+}
+
+// ---------- UI ----------
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+let current = [];   // passages shown and sent
+let sample = null, ctl = null;
+
+function renderLibrary() {
+  const byFile = new Map();
+  chunks.forEach(c => {
+    const e = byFile.get(c.file) || { title: c.document, n: 0, pages: 0, builtin: c.builtin };
+    e.n++; e.pages = Math.max(e.pages, c.page); byFile.set(c.file, e);
+  });
+  $("doclist").innerHTML = [...byFile].map(([file, e]) => `
+    <li class="doc"><span class="name">${esc(e.title)}</span>
+      <span class="meta">${e.pages}p · ${e.n} chunks${e.builtin ? "" : ` · <button class="remove" data-file="${esc(file)}">remove</button>`}</span></li>`).join("");
+  $("stat-chunks").textContent = chunks.length;
+}
+
+function highlight(text, terms) {
+  let html = esc(text);
+  if (!terms.length) return html;
+  const re = new RegExp(`\\b(${terms.map(t => t.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&")).join("|")})\\b`, "gi");
+  return html.replace(re, "<mark>$1</mark>");
+}
+
+function renderSources() {
+  const q = $("q").value.trim();
+  const k = +$("k").value;
+  current = q ? search(q, k) : [];
+  $("st2").classList.toggle("active", current.length > 0);
+  if (!q) { $("sources").innerHTML = `<p class="empty">Passages appear here as you type.</p>`; return; }
+  if (!current.length) { $("sources").innerHTML = `<p class="empty">No passage shares a keyword with this question. Try other words.</p>`; return; }
+  const max = current[0].score, terms = tokenize(q);
+  $("sources").innerHTML = current.map((h, i) => `
+    <details class="src" id="src-${i + 1}" ${i === 0 ? "open" : ""}>
+      <summary><span class="n">[${i + 1}]</span>
+        <span class="title">${esc(h.document)} <small>page ${h.page}</small></span>
+        <span class="bar" title="BM25 score"><i><span style="width:${Math.round(100 * h.score / max)}%"></span></i>${h.score.toFixed(1)}</span></summary>
+      <pre>${highlight(h.text, terms)}</pre>
+    </details>`).join("");
+}
+
+function renderAnswer(text) {
+  const el = $("answer");
+  el.classList.remove("placeholder");
+  el.innerHTML = esc(text).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+    .replace(/\[(\d+(?:\s*,\s*\d+)*)\]/g, (_, nums) => nums.split(/\s*,\s*/)
+      .map(n => `<button type="button" class="cite" data-n="${n}">${n}</button>`).join(""));
+}
+
+function setPlaceholder(msg) { const el = $("answer"); el.classList.add("placeholder"); el.textContent = msg; }
+function setNote(msg) { $("note").hidden = !msg; $("note").textContent = msg || ""; }
+
+const ERRORS = {
+  not_granted: "Claude wasn't allowed for this page. The search results below still work.",
+  sampling_disabled: "Claude isn't available on this account. The search results below still work.",
+  rate_limited: "Too many questions in a short time. Wait a minute, then ask again.",
+  session_expired: "Your Claude session expired. Sign in again, then ask again.",
+  refused: "Claude declined this question. Try rewording it.",
+  prompt_too_large: "Too much text to send. Lower the number of passages and try again.",
+  empty_completion: "Claude returned an empty answer. Try rewording the question.",
+};
+
+async function ask() {
+  const q = $("q").value.trim();
+  if (!q) { $("q").focus(); return; }
+  renderSources();
+  if (!current.length) { setPlaceholder("No matching passages, so there is nothing to send to Claude."); return; }
+  if (!sample) { setPlaceholder("Claude answers only when this page is opened in Claude. The retrieved passages are below."); return; }
+  ctl = new AbortController();
+  $("ask").disabled = true; $("stop").hidden = false; setNote("");
+  $("st3").classList.add("active");
+  setPlaceholder("Thinking…");
+  try {
+    const { truncated } = await sample(buildPrompt(q, current), {
+      signal: ctl.signal,
+      onText: ({ text }) => renderAnswer(text),
+    });
+    if (truncated) setNote("The answer was cut short. Try a narrower question.");
+  } catch (e) {
+    if (e.text && e.code !== "refused") renderAnswer(e.text); else setPlaceholder("");
+    if (e.code === "cancelled") setNote("Stopped.");
+    else if (e.code === "not_granted" || e.code === "sampling_disabled") { setNote(ERRORS[e.code]); sample = null; }
+    else setNote(ERRORS[e.code] || "Something went wrong reaching Claude. Ask again in a moment.");
+  } finally {
+    $("ask").disabled = false; $("stop").hidden = true; $("st3").classList.remove("active");
+  }
+}
+
+// events
+let typing;
+$("q").addEventListener("input", () => { clearTimeout(typing); typing = setTimeout(renderSources, 150); });
+$("k").addEventListener("input", () => { $("kval").textContent = $("stat-k").textContent = $("k").value; renderSources(); });
+$("askform").addEventListener("submit", e => { e.preventDefault(); ask(); });
+$("stop").addEventListener("click", () => ctl?.abort());
+$("examples").innerHTML = EXAMPLES.map(x => `<button type="button" class="chip">${esc(x)}</button>`).join("");
+$("examples").addEventListener("click", e => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  $("q").value = b.textContent; renderSources(); setPlaceholder("Press Ask Claude to answer from these passages.");
+});
+$("answer").addEventListener("click", e => {
+  const b = e.target.closest(".cite"); if (!b) return;
+  const el = $("src-" + b.dataset.n); if (!el) return;
+  el.open = true; el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1200);
+});
+$("doclist").addEventListener("click", e => {
+  const b = e.target.closest(".remove"); if (!b) return;
+  chunks = chunks.filter(c => c.file !== b.dataset.file).map((c, i) => ({ ...c, id: i }));
+  buildIndex(); renderLibrary(); renderSources();
+});
+$("file").addEventListener("change", async e => {
+  const st = $("addstatus"); st.classList.remove("err");
+  for (const f of [...e.target.files]) {
+    if (chunks.some(c => c.file === f.name)) { st.textContent = `${f.name} is already in the library.`; continue; }
+    st.textContent = `Reading ${f.name}…`;
+    try { const n = await addPdf(f); st.textContent = `Added ${f.name}: ${n} chunks.`; }
+    catch (err) { st.classList.add("err"); st.textContent = err.message || `Couldn't read ${f.name}.`; }
+  }
+  e.target.value = ""; buildIndex(); renderLibrary(); renderSources();
+});
+
+// start: show the first example's passages so the page opens in a working state
+buildIndex(); renderLibrary();
+$("q").value = EXAMPLES[0]; renderSources();
+setPlaceholder("Press Ask Claude to answer from these passages.");
+$("st1").classList.add("active");
+window.claude?.use("sample").then(s => { sample = s; }).catch(() => {});
+</script>
