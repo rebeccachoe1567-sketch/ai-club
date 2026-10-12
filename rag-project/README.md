@@ -78,7 +78,7 @@ python search.py "How many attendance points lead to termination?"
 
 # Ask Claude:
 python ask.py "Can I return a Breville espresso machine after 3 weeks?"
-python ask.py --show-sources "Who approves a $400 refund?"
+python ask.py --show-sources 'Who approves a $400 refund?'   # single quotes: in double quotes the shell would eat "$4"
 python ask.py          # interactive: keep asking until you enter a blank line
 ```
 
