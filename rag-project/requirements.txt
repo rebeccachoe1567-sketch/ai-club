@@ -1,0 +1,4 @@
+anthropic>=1.13,<2
+fastembed>=0.9,<1
+numpy>=2,<3
+pypdf>=6,<7
