@@ -42,7 +42,9 @@ the five Summit Ridge Coffee Co. PDFs in `docs/`, using:
 
 ## Setup
 
-1. **Install Python 3.10 or newer.**
+1. **Install Python 3.13** from https://www.python.org/downloads/ (3.10–3.13 all work).
+   Avoid 3.14 for now: the embedding library needs `onnxruntime`, which has no
+   Python 3.14 build for Intel Macs or for macOS versions before 14 (Sonoma).
 
 2. **Create a virtual environment and install the libraries:**
 
@@ -129,6 +131,7 @@ check every fact against the page it came from.
 |---|---|
 | `No index found` | Run `python ingest.py` first |
 | `built with a different model` | You changed `MODEL_NAME`: re-run `python ingest.py` |
+| `No matching distribution found for onnxruntime` | Your Python is too new for your Mac. Install Python 3.13, delete `.venv`, and create it again with `python3.13 -m venv .venv` |
 | Model download fails | The first run needs access to huggingface.co. Check your internet connection or proxy |
 | `No API key found` / `Invalid API key` | Set `ANTHROPIC_API_KEY` (see Setup), then open a new terminal on Windows |
 | An answer is wrong | Run `search.py` with the same question. If the right chunk isn't listed, the problem is retrieval, not Claude |
